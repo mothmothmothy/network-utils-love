@@ -117,11 +117,13 @@ function rpc_peers(host, this_id, param_types, flag, ...)
 	for i, param in pairs(param_types) do
 		local encoder = encoders[param]
 		if encoder then
+			print("encoding:", args[i], "as", param)
 			msg = msg .. encoder.encode(args[i])
 		else
 			error("no encoder for " .. param)
 		end
 	end
+	print("end of encoding")
 	host:broadcast(msg, nil, flag)
 end
 local module = {}
