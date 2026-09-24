@@ -4,6 +4,9 @@ local to_self_and_peers = "self_and_peers"
 local to_peer = "peer"
 local to_self_and_peer = "self_and_peer"
 
+print("notice: network-utils-love does not have encryption yet")
+print("attackers can spoof ip addresses and sniff packets")
+
 local disable_debug = true
 local print = print
 if disable_debug then
@@ -42,6 +45,25 @@ encoders = {
 			local ptr = ffi.cast("int*", ffi.new("char[?]", 4, str))
 			local t = ptr[0]
 			return t, 4
+		end,
+	},
+	["netid"] = {
+		["typecheck"] = function(object)
+			if type(object) == "number" and object == math.floor(object) then
+				return true
+			end
+			return false
+		end,
+		["encode"] = function(obj)
+			local int = obj.net_id
+			local encoded = ffi.string(ffi.new("int[?]", 1, int), 4)
+			return encoded, 4
+		end,
+		["decode"] = function(str)
+			local ptr = ffi.cast("int*", ffi.new("char[?]", 4, str))
+			local t = ptr[0]
+			local obj = net_id_to_object[t]
+			return obj, 4
 		end,
 	},
 	["float"] = {

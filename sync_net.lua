@@ -1,7 +1,7 @@
 local rpc = require("rpc")
 
 local net_id_counter = 1
-local net_id_to_object = {}
+net_id_to_object = {} -- global for rpc
 
 local blueprint = {}
 blueprint.__index = blueprint
