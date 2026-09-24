@@ -4,6 +4,12 @@ local to_self_and_peers = "self_and_peers"
 local to_peer = "peer"
 local to_self_and_peer = "self_and_peer"
 
+local disable_debug = true
+local print = print
+if disable_debug then
+	print = function(...) end
+end
+
 local ffi = require("ffi")
 local encoders = {}
 encoders = {

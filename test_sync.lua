@@ -28,9 +28,9 @@ function love.load()
 		.new_net_blueprint()
 		:add_field("string", "crate_name", "apples")
 		:add_field("int", "quantity", 5)
-		:complete("peers", hosting, host)
+		:complete(hosting, host)
 	if hosting then
-		crate = crate_class.new(-1, -1, "bananas", 7)
+		crate = crate_class.new("bananas", 7)
 		print(crate.fruits)
 	end
 end

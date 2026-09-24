@@ -6,6 +6,12 @@ local net_id_to_object = {}
 local blueprint = {}
 blueprint.__index = blueprint
 
+local disable_debug = true
+local print = print
+if disable_debug then
+	print = function(...) end
+end
+
 function blueprint:add_field(typ, name, default_value)
 	table.insert(self.types, typ)
 	table.insert(self.name, name)
@@ -13,7 +19,7 @@ function blueprint:add_field(typ, name, default_value)
 	return self
 end
 
-function blueprint:complete(receiver, is_host, host)
+function blueprint:complete(is_host, host)
 	local class = {}
 	class.__index = class
 	class._name_to_index = {}
@@ -22,6 +28,7 @@ function blueprint:complete(receiver, is_host, host)
 		class._name_to_index[name] = index
 	end
 	local class_rpc
+	local class_rpc_peer
 	local rpc_types = { "int", "int" }
 	for _, typ in pairs(self.types) do
 		table.insert(rpc_types, typ)
@@ -31,30 +38,34 @@ function blueprint:complete(receiver, is_host, host)
 		print(typ)
 	end
 	print("end")
-	if not is_host then
-		class_rpc = rpc.new_rpc(receiver, rpc_types, nil, host, function(net_id, net_id_counter, ...)
-			local arguments = { ... }
-			local new_arguments = { net_id, -1 }
-			if net_id_counter ~= -1 then
-				new_arguments[2] = net_id_counter
-			end
+	local rpc_func = function(net_id, net_id_counter, ...)
+		local arguments = { ... }
+		local new_arguments = { net_id, -1 }
+		if net_id_counter ~= -1 then
+			new_arguments[2] = net_id_counter
+		end
+		for index, name in pairs(class._index_to_name) do
+			table.insert(new_arguments, arguments[index])
+		end
+		local object = net_id_to_object[net_id]
+		if object then
 			for index, name in pairs(class._index_to_name) do
-				table.insert(new_arguments, arguments[index])
+				object[name] = arguments[index]
 			end
-			local object = net_id_to_object[net_id]
-			if object then
-				for index, name in pairs(class._index_to_name) do
-					object[name] = arguments[index]
-				end
-				print("synced existing object:", net_id)
-			else
-				object = class.new(unpack(new_arguments))
-				print("synced a new object:", net_id)
-				class.on_new_object(object)
-			end
-		end)
+			print("synced existing object:", net_id)
+			class.on_object_change(object)
+		else
+			object = class._new(unpack(new_arguments))
+			print("synced a new object:", net_id)
+			class.on_new_object(object)
+		end
+	end
+	if not is_host then
+		class_rpc = rpc.new_rpc("peers", rpc_types, nil, host, rpc_func)
+		class_rpc_peer = rpc.new_rpc("peer", rpc_types, nil, host, rpc_func)
 	else
-		class_rpc = rpc.new_rpc(receiver, rpc_types, nil, host, function(...) end)
+		class_rpc = rpc.new_rpc("peers", rpc_types, nil, host, function(...) end)
+		class_rpc_peer = rpc.new_rpc("peer", rpc_types, nil, host, function(...) end)
 	end
 	class.sync = function(self, peer)
 		assert(is_host, "cant do sync on client")
@@ -72,10 +83,14 @@ function blueprint:complete(receiver, is_host, host)
 			print(p)
 		end
 		print("bullshit end")
-		class_rpc(unpack(params))
+		if peer then
+			class_rpc_peer(unpack(params))
+		else
+			class_rpc(unpack(params))
+		end
 	end
 	-- to be called on the server, or by the sync rpc for the client
-	class.new = function(new_net_id, new_net_id_counter, ...)
+	class._new = function(new_net_id, new_net_id_counter, ...)
 		local new_object = {}
 		setmetatable(new_object, class)
 		for index, field in pairs({ ... }) do
@@ -92,8 +107,17 @@ function blueprint:complete(receiver, is_host, host)
 		net_id_to_object[new_object.net_id] = new_object
 		return new_object
 	end
+	class.new = function(...)
+		local t = { -1, -1 }
+		for _, p in pairs({ ... }) do
+			table.insert(t, p)
+		end
+		return class._new(unpack(t))
+	end
 	-- override this
 	class.on_new_object = function(self) end
+	-- and this
+	class.on_object_change = function(self) end
 	return class
 end
 
